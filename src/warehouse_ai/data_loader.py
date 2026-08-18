@@ -2,11 +2,36 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List
+from zipfile import ZipFile
 
 import pandas as pd
 
 
 DATASET_PATH = Path(__file__).resolve().parents[2] / 'data' / 'raw'
+DATASET_FOLDER_NAME = 'Order Picking Dataset from a Warehouse of a Footwear Manufacturing Company'
+
+
+def _ensure_dataset_root() -> Path:
+    """Return the extracted dataset folder, extracting the shipped ZIP if needed."""
+    dataset_root = DATASET_PATH / DATASET_FOLDER_NAME
+    if dataset_root.exists():
+        return dataset_root
+
+    repo_root = Path(__file__).resolve().parents[2]
+    archives = [repo_root / f'{DATASET_FOLDER_NAME}.zip', *sorted(DATASET_PATH.glob('*.zip'))]
+    archive = next((path for path in archives if path.exists()), None)
+    if archive is None:
+        return dataset_root
+
+    DATASET_PATH.mkdir(parents=True, exist_ok=True)
+    with ZipFile(archive) as zip_file:
+        base = DATASET_PATH.resolve()
+        for member in zip_file.infolist():
+            target = (DATASET_PATH / member.filename).resolve()
+            if target != base and base not in target.parents:
+                raise ValueError(f'Unsafe path in dataset archive: {member.filename}')
+        zip_file.extractall(DATASET_PATH)
+    return dataset_root
 
 
 def list_dataset_files(base_dir: str | Path | None = None) -> List[str]:
@@ -52,9 +77,9 @@ def load_csv_dataset(path: str | Path, nrows: int | None = None) -> pd.DataFrame
 
 def load_primary_dataset() -> Dict[str, pd.DataFrame]:
     """Load the key warehouse tables from the repository's raw dataset."""
-    dataset_root = DATASET_PATH / 'Order Picking Dataset from a Warehouse of a Footwear Manufacturing Company'
+    dataset_root = _ensure_dataset_root()
     if not dataset_root.exists():
-        raise FileNotFoundError('Primary dataset not found. Extract the shipped ZIP into data/raw first.')
+        raise FileNotFoundError('Primary dataset not found. Place the shipped ZIP at the repository root or extract it into data/raw first.')
     data = {}
     expected_files = [
         'Product.csv',
@@ -75,3 +100,13 @@ def load_primary_dataset() -> Dict[str, pd.DataFrame]:
     if missing:
         raise FileNotFoundError(f"Required dataset files were not found: {', '.join(missing)}")
     return data
+
+
+def get_dataset_root() -> Path:
+    """Return the folder containing the shipped dataset files, including layout drawings."""
+    return DATASET_PATH / 'Order Picking Dataset from a Warehouse of a Footwear Manufacturing Company'
+
+
+def get_layout_svg_path(z_level: int) -> Path:
+    """Return the path to the official CAD floor-plan SVG for a given rack level (Z)."""
+    return get_dataset_root() / f'Layout_Z{int(z_level)}.0.svg'

@@ -98,6 +98,64 @@ def compute_zone_activity(storage_locations: pd.DataFrame, wave_activity: pd.Dat
     return summary.sort_values('pick_total', ascending=False).reset_index(drop=True)
 
 
+def compute_operator_productivity(waves: pd.DataFrame) -> pd.DataFrame:
+    """Rank picking operators by observed workload to support staffing and coaching decisions."""
+    columns = ['operator', 'picked_units', 'waves_handled', 'locations_covered', 'units_per_wave']
+    if waves.empty or 'operator' not in waves.columns:
+        return pd.DataFrame(columns=columns)
+    df = waves.copy()
+    df['operator'] = df['operator'].astype(str).str.strip()
+    quantities = pd.to_numeric(df['quantityToPick (units)'], errors='coerce').fillna(0) if 'quantityToPick (units)' in df else 0
+    df['quantityToPick (units)'] = quantities
+    grouped = df.groupby('operator', as_index=False).agg(
+        picked_units=('quantityToPick (units)', 'sum'),
+        waves_handled=('waveNumber', 'nunique') if 'waveNumber' in df else ('operator', 'size'),
+        locations_covered=('locations', 'nunique') if 'locations' in df else ('operator', 'size'),
+    )
+    grouped['units_per_wave'] = (grouped['picked_units'] / grouped['waves_handled'].replace(0, pd.NA)).fillna(0.0)
+    return grouped.sort_values('picked_units', ascending=False).reset_index(drop=True)
+
+
+def compute_daily_order_trend(orders: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate observed order volume by calendar day to reveal demand patterns over time."""
+    columns = ['date', 'orders', 'order_lines', 'units']
+    if orders.empty or 'creationDate' not in orders.columns:
+        return pd.DataFrame(columns=columns)
+    df = orders.copy()
+    df['creationDate'] = pd.to_datetime(df['creationDate'], dayfirst=True, errors='coerce')
+    df = df.dropna(subset=['creationDate'])
+    if df.empty:
+        return pd.DataFrame(columns=columns)
+    df['date'] = df['creationDate'].dt.date
+    quantities = pd.to_numeric(df['quantity (units)'], errors='coerce').fillna(0) if 'quantity (units)' in df else 0
+    df['quantity (units)'] = quantities
+    daily = df.groupby('date', as_index=False).agg(
+        orders=('orderNumber', 'nunique') if 'orderNumber' in df else ('date', 'size'),
+        order_lines=('date', 'size'),
+        units=('quantity (units)', 'sum'),
+    )
+    return daily.sort_values('date').reset_index(drop=True)
+
+
+def classify_location_type(location: str) -> str:
+    """Distinguish storage bins from staging/corridor navigation points using naming convention."""
+    code = str(location).strip().upper()
+    if code.startswith('RC-') or code.startswith('LC-'):
+        return 'Staging / Corridor Point'
+    if code.count('-') >= 2:
+        return 'Storage Bin'
+    return 'Other'
+
+
+def classify_congestion(workload_share: float) -> str:
+    """Flag a location's congestion severity for factory-manager triage."""
+    if workload_share >= 0.005:
+        return 'Critical'
+    if workload_share >= 0.0015:
+        return 'Watch'
+    return 'Normal'
+
+
 def compute_recommendation_score(orders: pd.DataFrame, waves: pd.DataFrame, products: pd.DataFrame) -> Dict[str, Any]:
     """Generate a simple evidence-based operational score for management recommendations."""
     top_skus = orders['Reference'].value_counts().head(5).to_dict() if not orders.empty else {}

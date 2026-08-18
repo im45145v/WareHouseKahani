@@ -1,6 +1,6 @@
 import pandas as pd
 
-from warehouse_ai.operations import analyze_wave_routes, summarize_wave_activity, identify_bottleneck_locations, simulate_volume_scenario
+from warehouse_ai.operations import analyze_wave_routes, build_operational_action_queue, identify_wave_exceptions, summarize_wave_activity, identify_bottleneck_locations, simulate_volume_scenario
 
 
 def test_summarize_wave_activity_counts_workload():
@@ -42,3 +42,29 @@ def test_analyze_wave_routes_labels_distance_as_unavailable():
     assert result['waves_analyzed'] == 1
     assert result['avg_unique_stops'] == 2
     assert result['distance_available'] is False
+
+
+def test_build_operational_action_queue_distinguishes_staging_points():
+    wave_df = pd.DataFrame(
+        {
+            'locations': ['RC-01', 'RC-01', 'A-01-01'],
+            'quantityToPick (units)': [8, 2, 5],
+        }
+    )
+    result = build_operational_action_queue(wave_df)
+    assert result.iloc[0]['location'] == 'RC-01'
+    assert result.iloc[0]['location_type'] == 'Staging / Corridor Point'
+    assert 'staging' in result.iloc[0]['recommended_action'].lower()
+
+
+def test_identify_wave_exceptions_flags_high_units_and_stops():
+    wave_df = pd.DataFrame(
+        {
+            'waveNumber': [1, 1, 2, 2, 3, 3],
+            'quantityToPick (units)': [10, 10, 2, 2, 3, 3],
+            'locations': ['A', 'B', 'A', 'A', 'A', 'B'],
+        }
+    )
+    result = identify_wave_exceptions(wave_df, quantile=0.8)
+    assert result.iloc[0]['wave'] == 1
+    assert result.iloc[0]['exception'] == 'Units and stops high'

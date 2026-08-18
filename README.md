@@ -12,7 +12,7 @@ pytest -q
 streamlit run app/streamlit_app.py
 ```
 
-The expected dataset directory is `data/raw/Order Picking Dataset from a Warehouse of a Footwear Manufacturing Company/`. The repository currently contains `Product.csv`, `Customer_Order.csv`, `Picking_Wave.csv`, `Storage_Location.csv`, `Support_Points_Navigation.csv`, and four storage-strategy CSVs. The loader detects the source delimiter, including the comma-delimited Random storage file.
+The expected dataset directory is `data/raw/Order Picking Dataset from a Warehouse of a Footwear Manufacturing Company/`. The loader also automatically extracts the supplied root-level ZIP into `data/raw` when the directory is missing. The repository currently contains `Product.csv`, `Customer_Order.csv`, `Picking_Wave.csv`, `Storage_Location.csv`, `Support_Points_Navigation.csv`, and four storage-strategy CSVs. The loader detects the source delimiter, including the comma-delimited Random storage file.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ The expected dataset directory is `data/raw/Order Picking Dataset from a Warehou
 
 ## What is measured
 
-Observed KPIs include orders, order lines, ordered units, picking waves, picked units, unique locations, unique SKUs, average locations per wave, workload share, and order-line ABC concentration. Storage comparisons report parsed slot counts, SKU counts, and quantities. The coordinate view joins observed picked-unit activity to real `Storage_Location.csv` coordinates.
+Observed KPIs include orders, order lines, ordered units, picking waves, picked units, unique locations, unique SKUs, average locations per wave, workload share, and order-line ABC concentration. Storage comparisons report parsed slot counts, SKU counts, and quantities. The dashboard also provides a type-aware hotspot action queue and a slotting review queue. The coordinate view joins observed picked-unit activity to real `Storage_Location.csv` coordinates.
 
 ## What is not claimed
 

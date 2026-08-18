@@ -9,7 +9,7 @@ from warehouse_ai.analytics import (
 )
 from warehouse_ai.storage_model import parse_storage_strategy_table
 from warehouse_ai.storage_strategy import compare_storage_strategies
-from warehouse_ai.data_quality import summarize_missing_values
+from warehouse_ai.data_quality import build_operational_readiness, summarize_missing_values
 from warehouse_ai.data_quality import validate_table
 
 
@@ -144,3 +144,18 @@ def test_validate_table_reports_missing_schema_without_dropping_rows():
     assert result['missing_columns'] == ['name']
     assert result['duplicate_rows'] == 1
     assert result['status'] == 'FAIL'
+
+
+def test_operational_readiness_flags_unmatched_locations_without_blocking():
+    dataset = {
+        'Customer_Order': pd.DataFrame({'orderNumber': [1], 'Reference': ['A'], 'quantity (units)': [2]}),
+        'Picking_Wave': pd.DataFrame({'waveNumber': [1], 'reference': ['A'], 'quantityToPick (units)': [2], 'locations': ['RC-01']}),
+        'Storage_Location': pd.DataFrame({'originalLocation': ['A-01-01'], 'x': [1], 'y': [1], 'z': [1]}),
+    }
+    result = build_operational_readiness(dataset, {
+        'Customer_Order': ['orderNumber', 'Reference', 'quantity (units)'],
+        'Picking_Wave': ['waveNumber', 'reference', 'quantityToPick (units)', 'locations'],
+        'Storage_Location': ['originalLocation', 'x', 'y', 'z'],
+    })
+    assert result['status'] == 'REVIEW'
+    assert any('staging/corridor' in issue for issue in result['issues'])
